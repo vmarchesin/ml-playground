@@ -1,4 +1,4 @@
-# https://colab.research.google.com/notebooks/mlcc/validation.ipynb
+# https://colab.research.google.com/notebooks/mlcc/feature_sets.ipynb
 from __future__ import print_function
 
 import math
@@ -27,30 +27,31 @@ california_housing_dataframe = california_housing_dataframe.reindex(
     np.random.permutation(california_housing_dataframe.index))
 
 def preprocess_features(california_housing_dataframe):
-  """Prepares input features from California housing data set.
+    """Prepares input features from California housing data set.
 
-  Args:
-    california_housing_dataframe: A Pandas DataFrame expected to contain data
-      from the California housing data set.
-  Returns:
-    A DataFrame that contains the features to be used for the model, including
-    synthetic features.
-  """
-  selected_features = california_housing_dataframe[
-    ["latitude",
-     "longitude",
-     "housing_median_age",
-     "total_rooms",
-     "total_bedrooms",
-     "population",
-     "households",
-     "median_income"]]
-  processed_features = selected_features.copy()
-  # Create a synthetic feature.
-  processed_features["rooms_per_person"] = (
-    california_housing_dataframe["total_rooms"] /
-    california_housing_dataframe["population"])
-  return processed_features
+    Args:
+        california_housing_dataframe: A Pandas DataFrame expected to contain data
+        from the California housing data set.
+    Returns:
+        A DataFrame that contains the features to be used for the model, including
+        synthetic features.
+    """
+    selected_features = california_housing_dataframe[
+        ["latitude",
+        "longitude",
+        "housing_median_age",
+        "total_rooms",
+        "total_bedrooms",
+        "population",
+        "households",
+        "median_income"]]
+    processed_features = selected_features.copy()
+    # Create a synthetic feature.
+    processed_features["rooms_per_person"] = (
+        california_housing_dataframe["total_rooms"] /
+        california_housing_dataframe["population"])
+
+    return processed_features
 
 def preprocess_targets(california_housing_dataframe):
     """Prepares target features (i.e., labels) from California housing data set.
@@ -67,54 +68,43 @@ def preprocess_targets(california_housing_dataframe):
         california_housing_dataframe["median_house_value"] / 1000.0)
     return output_targets
 
+# Choose the first 12000 (out of 17000) examples for training.
 training_examples = preprocess_features(california_housing_dataframe.head(12000))
 training_targets = preprocess_targets(california_housing_dataframe.head(12000))
+
+# Choose the last 5000 (out of 17000) examples for validation.
 validation_examples = preprocess_features(california_housing_dataframe.tail(5000))
 validation_targets = preprocess_targets(california_housing_dataframe.tail(5000))
 
-# print('Training Examples')
-# print(training_examples.describe())
-# print('###########\nTraining Targets')
-# print(training_targets.describe())
-# print('###########\nValidation Examples')
-# print(validation_examples.describe())
-# print('###########\nValidation targets')
-# print(validation_targets.describe())
-# print('###########')
+# Double-check that we've done the right thing.
+print("Training examples summary:")
+display.display(training_examples.describe())
+print("Validation examples summary:")
+display.display(validation_examples.describe())
 
-def plot():
-    plt.figure(figsize=(13, 8))
+print("Training targets summary:")
+display.display(training_targets.describe())
+print("Validation targets summary:")
+display.display(validation_targets.describe())
 
-    ax = plt.subplot(1, 2, 1)
-    ax.set_title("Validation Data")
+correlation_dataframe = training_examples.copy()
+correlation_dataframe["target"] = training_targets["median_house_value"]
 
-    ax.set_autoscaley_on(False)
-    ax.set_ylim([32, 43])
-    ax.set_autoscalex_on(False)
-    ax.set_xlim([-126, -112])
-    plt.scatter(validation_examples["longitude"],
-                validation_examples["latitude"],
-                cmap="coolwarm",
-                c=validation_targets["median_house_value"] / validation_targets["median_house_value"].max())
+print(correlation_dataframe.corr())
 
-    ax = plt.subplot(1,2,2)
-    ax.set_title("Training Data")
+def construct_feature_columns(input_features):
+    """Construct the TensorFlow Feature Columns.
 
-    ax.set_autoscaley_on(False)
-    ax.set_ylim([32, 43])
-    ax.set_autoscalex_on(False)
-    ax.set_xlim([-126, -112])
-    plt.scatter(training_examples["longitude"],
-                training_examples["latitude"],
-                cmap="coolwarm",
-                c=training_targets["median_house_value"] / training_targets["median_house_value"].max())
-    plt.plot()
-    plt.show()
-
-# plot()
+    Args:
+        input_features: The names of the numerical input features to use.
+    Returns:
+        A set of feature columns
+    """
+    return set([tf.feature_column.numeric_column(my_feature)
+                for my_feature in input_features])
 
 def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
-    """Trains a linear regression model of multiple features.
+    """Trains a linear regression model.
 
     Args:
       features: pandas DataFrame of features
@@ -141,17 +131,6 @@ def my_input_fn(features, targets, batch_size=1, shuffle=True, num_epochs=None):
     features, labels = ds.make_one_shot_iterator().get_next()
     return features, labels
 
-def construct_feature_columns(input_features):
-    """Construct the TensorFlow Feature Columns.
-
-    Args:
-        input_features: The names of the numerical input features to use.
-    Returns:
-        A set of feature columns
-    """
-    return set([tf.feature_column.numeric_column(my_feature)
-                for my_feature in input_features])
-
 def train_model(
     learning_rate,
     steps,
@@ -160,7 +139,7 @@ def train_model(
     training_targets,
     validation_examples,
     validation_targets):
-    """Trains a linear regression model of multiple features.
+    """Trains a linear regression model.
 
     In addition to training, this function also prints training progress information,
     as well as a plot of the training and validation loss over time.
@@ -195,19 +174,17 @@ def train_model(
     )
 
     # Create input functions.
-    training_input_fn = lambda: my_input_fn(
-        training_examples,
-        training_targets["median_house_value"],
-        batch_size=batch_size)
-    predict_training_input_fn = lambda: my_input_fn(
-        training_examples,
-        training_targets["median_house_value"],
-        num_epochs=1,
-        shuffle=False)
-    predict_validation_input_fn = lambda: my_input_fn(
-        validation_examples, validation_targets["median_house_value"],
-        num_epochs=1,
-        shuffle=False)
+    training_input_fn = lambda: my_input_fn(training_examples,
+                                            training_targets["median_house_value"],
+                                            batch_size=batch_size)
+    predict_training_input_fn = lambda: my_input_fn(training_examples,
+                                                    training_targets["median_house_value"],
+                                                    num_epochs=1,
+                                                    shuffle=False)
+    predict_validation_input_fn = lambda: my_input_fn(validation_examples,
+                                                        validation_targets["median_house_value"],
+                                                        num_epochs=1,
+                                                        shuffle=False)
 
     # Train the model, but do so inside a loop so that we can periodically assess
     # loss metrics.
@@ -221,7 +198,7 @@ def train_model(
             input_fn=training_input_fn,
             steps=steps_per_period,
         )
-        # 2. Take a break and compute predictions.
+        # Take a break and compute predictions.
         training_predictions = linear_regressor.predict(input_fn=predict_training_input_fn)
         training_predictions = np.array([item['predictions'][0] for item in training_predictions])
 
@@ -240,6 +217,7 @@ def train_model(
         validation_rmse.append(validation_root_mean_squared_error)
     print("Model training finished.")
 
+
     # Output a graph of loss metrics over periods.
     plt.ylabel("RMSE")
     plt.xlabel("Periods")
@@ -251,41 +229,51 @@ def train_model(
 
     return linear_regressor
 
-# RSME 224
-# linear_regressor = train_model(
-#     # TWEAK THESE VALUES TO SEE HOW MUCH YOU CAN IMPROVE THE RMSE
-#     learning_rate=0.00001,
-#     steps=100,
-#     batch_size=1,
-#     training_examples=training_examples,
+#
+# Your code here: add your features of choice as a list of quoted strings.
+#
+minimal_features = [
+    "median_income",
+    "latitude",
+]
+
+assert minimal_features, "You must select at least one feature!"
+
+minimal_training_examples = training_examples[minimal_features]
+minimal_validation_examples = validation_examples[minimal_features]
+
+#
+# Don't forget to adjust these parameters.
+#
+# train_model(
+#     learning_rate=0.01,
+#     steps=500,
+#     batch_size=5,
+#     training_examples=minimal_training_examples,
 #     training_targets=training_targets,
-#     validation_examples=validation_examples,
+#     validation_examples=minimal_validation_examples,
 #     validation_targets=validation_targets)
 
-# RSME 166
-linear_regressor = train_model(
-    learning_rate=0.00003,
+plt.scatter(training_examples["latitude"], training_targets["median_house_value"])
+# plt.show()
+
+def select_and_transform_features(source_df):
+  LATITUDE_RANGES = zip(range(32, 44), range(33, 45))
+  selected_examples = pd.DataFrame()
+  selected_examples["median_income"] = source_df["median_income"]
+  for r in LATITUDE_RANGES:
+    selected_examples["latitude_%d_to_%d" % r] = source_df["latitude"].apply(
+      lambda l: 1.0 if l >= r[0] and l < r[1] else 0.0)
+  return selected_examples
+
+selected_training_examples = select_and_transform_features(training_examples)
+selected_validation_examples = select_and_transform_features(validation_examples)
+
+train_model(
+    learning_rate=0.01,
     steps=500,
     batch_size=5,
-    training_examples=training_examples,
+    training_examples=selected_training_examples,
     training_targets=training_targets,
-    validation_examples=validation_examples,
+    validation_examples=selected_validation_examples,
     validation_targets=validation_targets)
-
-california_housing_test_data = pd.read_csv(csv, sep=",")
-test_examples = preprocess_features(california_housing_test_data)
-test_targets = preprocess_targets(california_housing_test_data)
-
-predict_test_input_fn = lambda: my_input_fn(
-      test_examples,
-      test_targets["median_house_value"],
-      num_epochs=1,
-      shuffle=False)
-
-test_predictions = linear_regressor.predict(input_fn=predict_test_input_fn)
-test_predictions = np.array([item['predictions'][0] for item in test_predictions])
-
-root_mean_squared_error = math.sqrt(
-    metrics.mean_squared_error(test_predictions, test_targets))
-
-print("Final RMSE (on test data): %0.2f" % root_mean_squared_error)

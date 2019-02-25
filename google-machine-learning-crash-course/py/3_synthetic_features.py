@@ -1,5 +1,4 @@
 # https://colab.research.google.com/notebooks/mlcc/synthetic_features_and_outliers.ipynb
-
 from __future__ import print_function
 
 import math
